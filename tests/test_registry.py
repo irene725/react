@@ -3,6 +3,7 @@
 import pytest
 from src.algorithms import LengthCheckAlgorithm, KeywordCheckAlgorithm
 from src.registry import AlgorithmRegistry
+from src.exceptions import AlgorithmNotFoundError, AlgorithmRegistrationError, CriteriaNotFoundError
 
 
 @pytest.fixture
@@ -29,7 +30,7 @@ class TestAlgorithmRegistry:
 
         registry.register(algo1)
 
-        with pytest.raises(ValueError, match="already registered"):
+        with pytest.raises(AlgorithmRegistrationError):
             registry.register(algo2)
 
     def test_get_algorithm(self, registry):
@@ -42,7 +43,7 @@ class TestAlgorithmRegistry:
 
     def test_get_nonexistent_algorithm_raises_error(self, registry):
         """존재하지 않는 알고리즘 조회 시 에러."""
-        with pytest.raises(KeyError, match="not registered"):
+        with pytest.raises(AlgorithmNotFoundError):
             registry.get_algorithm("nonexistent")
 
     def test_list_algorithms(self, registry):
@@ -64,7 +65,7 @@ class TestAlgorithmRegistry:
 
     def test_get_nonexistent_criteria_raises_error(self, registry):
         """존재하지 않는 판단 기준 문서 조회 시 에러."""
-        with pytest.raises(FileNotFoundError):
+        with pytest.raises(CriteriaNotFoundError):
             registry.get_criteria_document("nonexistent_algorithm")
 
     def test_unregister_algorithm(self, registry):
@@ -80,7 +81,7 @@ class TestAlgorithmRegistry:
 
     def test_unregister_nonexistent_raises_error(self, registry):
         """존재하지 않는 알고리즘 해제 시 에러."""
-        with pytest.raises(KeyError, match="not registered"):
+        with pytest.raises(AlgorithmNotFoundError):
             registry.unregister("nonexistent")
 
     def test_get_algorithm_info(self, registry):

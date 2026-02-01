@@ -5,9 +5,17 @@ from typing import Dict, Any, Optional
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_openai import ChatOpenAI
 from langchain_anthropic import ChatAnthropic
+from openai import APITimeoutError as OpenAITimeoutError, RateLimitError as OpenAIRateLimitError
+from anthropic import APITimeoutError as AnthropicTimeoutError, RateLimitError as AnthropicRateLimitError
 
 from ..models import JudgmentResult
 from ..registry import AlgorithmRegistry
+from ..exceptions import (
+    LLMConnectionError,
+    LLMTimeoutError,
+    LLMRateLimitError,
+    JudgeResponseParseError,
+)
 from .prompts import SYSTEM_PROMPT, format_user_prompt
 
 
@@ -81,8 +89,10 @@ class ReactJudge:
             JudgmentResult: 판단 결과
 
         Raises:
-            FileNotFoundError: 판단 기준 문서가 없는 경우
-            Exception: LLM 호출 실패 시
+            CriteriaNotFoundError: 판단 기준 문서가 없는 경우
+            LLMTimeoutError: LLM API 타임아웃
+            LLMRateLimitError: LLM API 속도 제한
+            LLMConnectionError: LLM API 연결 오류
         """
         # 판단 기준 문서 로드
         criteria_document = self.registry.get_criteria_document(algorithm_name)
@@ -103,8 +113,18 @@ class ReactJudge:
             HumanMessage(content=user_prompt)
         ]
 
-        response = self.llm.invoke(messages)
-        response_text = response.content
+        try:
+            response = self.llm.invoke(messages)
+            response_text = response.content
+        except (OpenAITimeoutError, AnthropicTimeoutError) as e:
+            logger.error(f"LLM timeout: {e}")
+            raise LLMTimeoutError(self.llm_provider, self.timeout) from e
+        except (OpenAIRateLimitError, AnthropicRateLimitError) as e:
+            logger.error(f"LLM rate limit: {e}")
+            raise LLMRateLimitError(self.llm_provider) from e
+        except Exception as e:
+            logger.error(f"LLM connection error: {e}")
+            raise LLMConnectionError(self.llm_provider, e) from e
 
         logger.debug(f"LLM response: {response_text[:500]}...")
 
@@ -120,6 +140,10 @@ class ReactJudge:
 
         Returns:
             JudgmentResult 객체
+
+        Note:
+            파싱 실패 시에도 기본 JudgmentResult를 반환합니다.
+            오류를 던지지 않고 안전하게 처리합니다.
         """
         try:
             # JSON 블록 추출
@@ -140,13 +164,14 @@ class ReactJudge:
                 summary=data.get("summary", "")
             )
         except (json.JSONDecodeError, KeyError, ValueError) as e:
-            logger.error(f"Failed to parse LLM response: {e}")
-            # 파싱 실패 시 기본 응답 반환
+            parse_error = JudgeResponseParseError(response_text, e)
+            logger.error(f"Failed to parse LLM response: {parse_error}")
+            # 파싱 실패 시 기본 응답 반환 (안전하게 처리)
             return JudgmentResult(
                 algorithm_name=algorithm_name,
                 has_problem=False,
                 severity="none",
-                reasoning=f"Failed to parse response: {response_text}",
+                reasoning=f"Failed to parse response: {str(e)}",
                 summary="Judgment parsing failed, assuming no problem"
             )
 

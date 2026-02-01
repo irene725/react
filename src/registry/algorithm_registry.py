@@ -2,6 +2,11 @@ from typing import Dict, List, Optional, Type
 from pathlib import Path
 
 from ..algorithms.base import BaseAlgorithm
+from ..exceptions import (
+    AlgorithmNotFoundError,
+    AlgorithmRegistrationError,
+    CriteriaNotFoundError,
+)
 
 
 class AlgorithmRegistry:
@@ -33,11 +38,11 @@ class AlgorithmRegistry:
             algorithm: 등록할 알고리즘 인스턴스
 
         Raises:
-            ValueError: 이미 동일한 이름의 알고리즘이 등록되어 있는 경우
+            AlgorithmRegistrationError: 이미 동일한 이름의 알고리즘이 등록되어 있는 경우
         """
         name = algorithm.name
         if name in self._algorithms:
-            raise ValueError(f"Algorithm '{name}' is already registered")
+            raise AlgorithmRegistrationError(name, "Algorithm is already registered")
         self._algorithms[name] = algorithm
 
     def get_algorithm(self, name: str) -> BaseAlgorithm:
@@ -50,10 +55,10 @@ class AlgorithmRegistry:
             등록된 알고리즘 인스턴스
 
         Raises:
-            KeyError: 등록되지 않은 알고리즘인 경우
+            AlgorithmNotFoundError: 등록되지 않은 알고리즘인 경우
         """
         if name not in self._algorithms:
-            raise KeyError(f"Algorithm '{name}' is not registered")
+            raise AlgorithmNotFoundError(name)
         return self._algorithms[name]
 
     def get_criteria_document(self, algorithm_name: str) -> str:
@@ -66,13 +71,11 @@ class AlgorithmRegistry:
             판단 기준 문서 내용 (Markdown)
 
         Raises:
-            FileNotFoundError: 판단 기준 문서가 없는 경우
+            CriteriaNotFoundError: 판단 기준 문서가 없는 경우
         """
         criteria_file = self._criteria_path / f"{algorithm_name}.md"
         if not criteria_file.exists():
-            raise FileNotFoundError(
-                f"Criteria document not found for algorithm '{algorithm_name}': {criteria_file}"
-            )
+            raise CriteriaNotFoundError(algorithm_name, str(criteria_file))
         return criteria_file.read_text(encoding="utf-8")
 
     def list_algorithms(self) -> List[str]:
@@ -101,10 +104,10 @@ class AlgorithmRegistry:
             name: 제거할 알고리즘 이름
 
         Raises:
-            KeyError: 등록되지 않은 알고리즘인 경우
+            AlgorithmNotFoundError: 등록되지 않은 알고리즘인 경우
         """
         if name not in self._algorithms:
-            raise KeyError(f"Algorithm '{name}' is not registered")
+            raise AlgorithmNotFoundError(name)
         del self._algorithms[name]
 
     def get_algorithm_info(self, name: str) -> Dict[str, str]:

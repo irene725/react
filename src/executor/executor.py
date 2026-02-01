@@ -4,6 +4,11 @@ from typing import Union, Optional, List
 from ..models import Plan, PlanStep, StepResult, ExecutionResult, JudgmentResult
 from ..registry import AlgorithmRegistry
 from ..judge import ReactJudge, MockReactJudge
+from ..exceptions import (
+    AlgorithmExecutionError,
+    JudgeEvaluationError,
+    StepExecutionError,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -101,6 +106,9 @@ class Executor:
 
         Returns:
             StepResult: 스텝 실행 결과
+
+        Raises:
+            StepExecutionError: 스텝 실행 중 복구 불가능한 오류 발생 시
         """
         algorithm = self.registry.get_algorithm(step.algorithm_name)
 
@@ -109,13 +117,16 @@ class Executor:
         text = input_spec.pop("text", "")
 
         # 알고리즘 실행
+        algorithm_error = None
         try:
             execution_result = algorithm.execute(text, **input_spec)
         except Exception as e:
-            logger.error(f"Algorithm execution failed: {e}")
+            algorithm_error = AlgorithmExecutionError(step.algorithm_name, e)
+            logger.error(f"Algorithm execution failed: {algorithm_error}")
             execution_result = {
                 "raw_result": None,
                 "error": str(e),
+                "error_type": type(e).__name__,
                 "success": False
             }
 
@@ -126,7 +137,8 @@ class Executor:
                 execution_result=execution_result
             )
         except Exception as e:
-            logger.error(f"Judge evaluation failed: {e}")
+            judge_error = JudgeEvaluationError(step.algorithm_name, e)
+            logger.error(f"Judge evaluation failed: {judge_error}")
             judgment = JudgmentResult(
                 algorithm_name=step.algorithm_name,
                 has_problem=False,

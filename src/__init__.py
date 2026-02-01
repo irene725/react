@@ -17,6 +17,27 @@ from .planner import Planner
 from .judge import ReactJudge, MockReactJudge
 from .executor import Executor
 from .reporter import Reporter
+from .exceptions import (
+    TextAnalyzerError,
+    AlgorithmError,
+    AlgorithmNotFoundError,
+    AlgorithmExecutionError,
+    AlgorithmRegistrationError,
+    JudgeError,
+    JudgeEvaluationError,
+    JudgeResponseParseError,
+    LLMError,
+    LLMConnectionError,
+    LLMTimeoutError,
+    LLMRateLimitError,
+    CriteriaError,
+    CriteriaNotFoundError,
+    PlanError,
+    InvalidPlanError,
+    ExecutionError,
+    StepExecutionError,
+    InputValidationError,
+)
 
 __all__ = [
     "TextAnalyzer",
@@ -35,4 +56,24 @@ __all__ = [
     "MockReactJudge",
     "Executor",
     "Reporter",
+    # Exceptions
+    "TextAnalyzerError",
+    "AlgorithmError",
+    "AlgorithmNotFoundError",
+    "AlgorithmExecutionError",
+    "AlgorithmRegistrationError",
+    "JudgeError",
+    "JudgeEvaluationError",
+    "JudgeResponseParseError",
+    "LLMError",
+    "LLMConnectionError",
+    "LLMTimeoutError",
+    "LLMRateLimitError",
+    "CriteriaError",
+    "CriteriaNotFoundError",
+    "PlanError",
+    "InvalidPlanError",
+    "ExecutionError",
+    "StepExecutionError",
+    "InputValidationError",
 ]
