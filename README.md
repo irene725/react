@@ -64,6 +64,8 @@ ANTHROPIC_API_KEY=your-api-key
 ## 사용법
 
 ### CLI
+pip install -e .
+text-analyzer analyze -f examples/input.txt --use-llm --provider openai --model gpt-4 
 
 ```bash
 # 텍스트 직접 분석
