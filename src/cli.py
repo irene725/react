@@ -34,9 +34,9 @@ def cli():
 )
 @click.option(
     "--provider",
-    type=click.Choice(["openai", "anthropic"]),
+    type=click.Choice(["openai", "anthropic", "litellm"]),
     default="openai",
-    help="LLM 제공자 선택"
+    help="LLM 제공자 선택 (litellm 사용 시 --model에 'provider/model' 형식 지정)"
 )
 @click.option(
     "--model",

@@ -8,8 +8,10 @@ from typing import Dict, Any, Optional, List, Tuple
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from langchain_openai import ChatOpenAI
 from langchain_anthropic import ChatAnthropic
+from langchain_community.chat_models import ChatLiteLLM
 from openai import APITimeoutError as OpenAITimeoutError, RateLimitError as OpenAIRateLimitError
 from anthropic import APITimeoutError as AnthropicTimeoutError, RateLimitError as AnthropicRateLimitError
+import litellm
 
 from ..models import JudgmentResult
 from ..registry import AlgorithmRegistry
@@ -73,8 +75,8 @@ class ReactJudge:
         """
         Args:
             registry: 알고리즘 레지스트리 (판단 기준 문서 조회용)
-            llm_provider: LLM 제공자 ("openai" 또는 "anthropic")
-            model_name: 사용할 모델 이름
+            llm_provider: LLM 제공자 ("openai", "anthropic", 또는 "litellm")
+            model_name: 사용할 모델 이름 (litellm의 경우 "provider/model" 형식)
             temperature: LLM 온도 설정
             timeout: API 호출 타임아웃 (초)
             api_key: API 키 (None이면 환경변수에서 로드)
@@ -101,6 +103,13 @@ class ReactJudge:
             )
         elif self.llm_provider == "anthropic":
             return ChatAnthropic(
+                model=self.model_name,
+                temperature=self.temperature,
+                timeout=self.timeout,
+                api_key=api_key
+            )
+        elif self.llm_provider == "litellm":
+            return ChatLiteLLM(
                 model=self.model_name,
                 temperature=self.temperature,
                 timeout=self.timeout,
@@ -262,10 +271,10 @@ Start by getting the criteria document, then analyze the result and submit your 
         """LLM을 호출하고 에러를 처리."""
         try:
             return self.llm.invoke(messages)
-        except (OpenAITimeoutError, AnthropicTimeoutError) as e:
+        except (OpenAITimeoutError, AnthropicTimeoutError, litellm.Timeout) as e:
             logger.error(f"LLM timeout: {e}")
             raise LLMTimeoutError(self.llm_provider, self.timeout) from e
-        except (OpenAIRateLimitError, AnthropicRateLimitError) as e:
+        except (OpenAIRateLimitError, AnthropicRateLimitError, litellm.RateLimitError) as e:
             logger.error(f"LLM rate limit: {e}")
             raise LLMRateLimitError(self.llm_provider) from e
         except Exception as e:
