@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nTask 1: 프로젝트 초기 설정 완료\n\n- 프로젝트 디렉토리 구조 생성 \\(config, src, examples, tests 등\\)\n- requirements.txt 작성\n  - LLM 프레임워크: langchain, langchain-openai, langchain-anthropic\n  - LLM Providers: openai, anthropic\n  - 데이터 검증: pydantic, pydantic-settings\n  - 환경변수: python-dotenv\n  - CLI: click\n  - 테스트: pytest, pytest-asyncio\n  - 타입체크: mypy\n- config/settings.py 설정 파일 생성\n  - Pydantic BaseSettings 기반 설정 클래스\n  - LLM 설정 \\(API 키, 모델, 온도, 타임아웃\\)\n  - 알고리즘 실행 순서 설정\n  - 로깅 설정\n- .env.example 환경변수 템플릿 생성\n- CLAUDE.md, README.md, .gitignore 추가\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(python3:*)",
+      "Bash(source venv/bin/activate)",
+      "Bash(pip install:*)",
+      "Bash(pytest:*)",
+      "Bash(python:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nTask 3: 알고리즘 인터페이스 및 Mock 구현\n\n- BaseAlgorithm 추상 클래스 구현\n- LengthCheckAlgorithm: 텍스트 길이 검사\n- KeywordCheckAlgorithm: 금지 키워드 검사\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nTask 4: 판단 기준 문서 작성\n\n- length_check.md: 길이 체크 판단 기준 \\(none/warning/critical\\)\n- keyword_check.md: 키워드 체크 판단 기준\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nTask 5: Algorithm Registry 구현\n\n- AlgorithmRegistry 싱글톤 클래스\n- register\\(\\), get_algorithm\\(\\), get_criteria_document\\(\\), list_algorithms\\(\\) 메서드\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
+    ]
+  }
+}
