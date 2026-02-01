@@ -1,5 +1,10 @@
-"""Judge Agent용 프롬프트 정의."""
+"""Judge Agent용 프롬프트 정의.
 
+Note: ReactJudge는 자체 REACT_SYSTEM_PROMPT를 사용합니다.
+이 파일은 하위 호환성 및 유틸리티 함수를 위해 유지됩니다.
+"""
+
+# Legacy 시스템 프롬프트 (하위 호환성을 위해 유지)
 SYSTEM_PROMPT = """You are a ReAct Judge Agent for text analysis. Your role is to evaluate algorithm results against judgment criteria and provide reasoned decisions.
 
 ## Your Task
@@ -54,6 +59,9 @@ def format_user_prompt(
     criteria_document: str
 ) -> str:
     """사용자 프롬프트를 포맷팅합니다.
+
+    Note: 이 함수는 하위 호환성을 위해 유지됩니다.
+    새로운 ReactJudge는 자체 프롬프트 포맷을 사용합니다.
 
     Args:
         algorithm_name: 알고리즘 이름
