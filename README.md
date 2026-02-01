@@ -78,6 +78,10 @@ text-analyzer analyze -f input.txt -o report.md
 # LLM Judge 사용 (기본은 Mock Judge)
 text-analyzer analyze -f input.txt --use-llm --provider openai --model gpt-4
 
+# LiteLLM 사용 (다양한 LLM 프로바이더 지원)
+text-analyzer analyze -f input.txt --use-llm --provider litellm --model openai/gpt-4
+text-analyzer analyze -f input.txt --use-llm --provider litellm --model anthropic/claude-3-opus-20240229
+
 # 디버그 모드
 text-analyzer analyze -f input.txt --debug --log-file analysis.log
 
@@ -101,6 +105,13 @@ analyzer = TextAnalyzer(
     use_llm_judge=True,
     llm_provider="openai",
     llm_model="gpt-4"
+)
+
+# LiteLLM 사용 (다양한 프로바이더 통합)
+analyzer = TextAnalyzer(
+    use_llm_judge=True,
+    llm_provider="litellm",
+    llm_model="openai/gpt-4"  # 또는 "anthropic/claude-3-opus-20240229"
 )
 
 text = "분석할 텍스트..."
