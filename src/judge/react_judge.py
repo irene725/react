@@ -4,7 +4,6 @@ import json
 import logging
 import re
 from typing import Dict, Any, Optional, List, Tuple
-from dataclasses import dataclass
 
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from langchain_openai import ChatOpenAI
@@ -18,33 +17,18 @@ from ..exceptions import (
     LLMConnectionError,
     LLMTimeoutError,
     LLMRateLimitError,
-    JudgeResponseParseError,
 )
+from .tools import JudgeTools, TOOLS_DESCRIPTION
 
 
 logger = logging.getLogger(__name__)
 
 
 # ReAct 시스템 프롬프트
-REACT_SYSTEM_PROMPT = """You are a ReAct Judge Agent that evaluates algorithm results using the Reasoning + Acting pattern.
+REACT_SYSTEM_PROMPT = f"""You are a ReAct Judge Agent that evaluates algorithm results using the Reasoning + Acting pattern.
 
 ## Available Tools
-
-1. **get_criteria** - Load the judgment criteria document for an algorithm
-   - Input: algorithm_name (string)
-   - Output: The criteria document content
-
-2. **check_threshold** - Check if a value meets a threshold condition
-   - Input: {"value": number, "threshold": number, "operator": "gt"|"gte"|"lt"|"lte"|"eq"}
-   - Output: {"result": true/false, "comparison": "value operator threshold"}
-
-3. **calculate_percentage** - Calculate what percentage one value is of another
-   - Input: {"value": number, "total": number}
-   - Output: {"percentage": number, "calculation": "value/total*100"}
-
-4. **submit_judgment** - Submit your final judgment (use this when you've reached a conclusion)
-   - Input: {"has_problem": true/false, "severity": "none"|"warning"|"critical", "reasoning": "...", "summary": "..."}
-   - Output: Judgment recorded
+{TOOLS_DESCRIPTION}
 
 ## Response Format
 
@@ -65,14 +49,6 @@ When you have enough information, use submit_judgment to provide your final verd
 4. Base your judgment on specific criteria from the document
 5. You MUST eventually call submit_judgment to complete the evaluation
 """
-
-
-@dataclass
-class Tool:
-    """도구 정의."""
-    name: str
-    description: str
-    func: callable
 
 
 class ReactJudge:
@@ -112,7 +88,7 @@ class ReactJudge:
         self.max_iterations = max_iterations
 
         self.llm = self._create_llm(api_key)
-        self._setup_tools()
+        self.tools = JudgeTools(registry)
 
     def _create_llm(self, api_key: Optional[str] = None):
         """LLM 인스턴스를 생성."""
@@ -132,94 +108,6 @@ class ReactJudge:
             )
         else:
             raise ValueError(f"Unsupported LLM provider: {self.llm_provider}")
-
-    def _setup_tools(self):
-        """사용 가능한 도구들을 설정."""
-        self.tools: Dict[str, Tool] = {
-            "get_criteria": Tool(
-                name="get_criteria",
-                description="Load judgment criteria document",
-                func=self._tool_get_criteria
-            ),
-            "check_threshold": Tool(
-                name="check_threshold",
-                description="Check if value meets threshold",
-                func=self._tool_check_threshold
-            ),
-            "calculate_percentage": Tool(
-                name="calculate_percentage",
-                description="Calculate percentage",
-                func=self._tool_calculate_percentage
-            ),
-            "submit_judgment": Tool(
-                name="submit_judgment",
-                description="Submit final judgment",
-                func=self._tool_submit_judgment
-            ),
-        }
-
-    # ===== Tool Implementations =====
-
-    def _tool_get_criteria(self, algorithm_name: str) -> str:
-        """판단 기준 문서를 로드."""
-        try:
-            criteria = self.registry.get_criteria_document(algorithm_name)
-            return f"Criteria document loaded:\n\n{criteria}"
-        except Exception as e:
-            return f"Error loading criteria: {e}"
-
-    def _tool_check_threshold(self, input_data: Dict[str, Any]) -> str:
-        """임계값 조건 확인."""
-        try:
-            value = float(input_data.get("value", 0))
-            threshold = float(input_data.get("threshold", 0))
-            operator = input_data.get("operator", "gte")
-
-            operators = {
-                "gt": (lambda v, t: v > t, ">"),
-                "gte": (lambda v, t: v >= t, ">="),
-                "lt": (lambda v, t: v < t, "<"),
-                "lte": (lambda v, t: v <= t, "<="),
-                "eq": (lambda v, t: v == t, "=="),
-            }
-
-            if operator not in operators:
-                return f"Error: Unknown operator '{operator}'. Use: gt, gte, lt, lte, eq"
-
-            func, symbol = operators[operator]
-            result = func(value, threshold)
-
-            return json.dumps({
-                "result": result,
-                "comparison": f"{value} {symbol} {threshold} = {result}"
-            })
-        except Exception as e:
-            return f"Error checking threshold: {e}"
-
-    def _tool_calculate_percentage(self, input_data: Dict[str, Any]) -> str:
-        """백분율 계산."""
-        try:
-            value = float(input_data.get("value", 0))
-            total = float(input_data.get("total", 1))
-
-            if total == 0:
-                return json.dumps({"error": "Cannot divide by zero"})
-
-            percentage = (value / total) * 100
-
-            return json.dumps({
-                "percentage": round(percentage, 2),
-                "calculation": f"{value} / {total} * 100 = {percentage:.2f}%"
-            })
-        except Exception as e:
-            return f"Error calculating percentage: {e}"
-
-    def _tool_submit_judgment(self, input_data: Dict[str, Any]) -> str:
-        """최종 판단 제출 (특별한 반환값으로 루프 종료 신호)."""
-        # 이 도구의 결과는 evaluate 메서드에서 특별히 처리됨
-        return "__JUDGMENT_SUBMITTED__"
-
-    # ===== ReAct Loop =====
 
     def _parse_action(self, response_text: str) -> Tuple[Optional[str], Optional[str], Optional[Any]]:
         """LLM 응답에서 Thought, Action, Action Input을 파싱.
@@ -253,27 +141,6 @@ class ReactJudge:
                 action_input = raw_input
 
         return thought, action, action_input
-
-    def _execute_tool(self, action: str, action_input: Any, context: Dict[str, Any]) -> str:
-        """도구를 실행하고 결과 반환."""
-        if action not in self.tools:
-            return f"Error: Unknown tool '{action}'. Available tools: {list(self.tools.keys())}"
-
-        tool = self.tools[action]
-
-        try:
-            if action == "get_criteria":
-                # algorithm_name은 context에서 가져옴
-                return tool.func(context.get("algorithm_name", action_input))
-            elif action in ["check_threshold", "calculate_percentage", "submit_judgment"]:
-                if isinstance(action_input, dict):
-                    return tool.func(action_input)
-                else:
-                    return f"Error: {action} requires JSON input"
-            else:
-                return tool.func(action_input)
-        except Exception as e:
-            return f"Error executing {action}: {e}"
 
     def evaluate(
         self,
@@ -362,7 +229,7 @@ Start by getting the criteria document, then analyze the result and submit your 
                     continue
 
             # 도구 실행
-            observation = self._execute_tool(action, action_input, context)
+            observation = self.tools.execute(action, action_input, context)
             reasoning_trace.append(f"Observation: {observation[:200]}...")
 
             logger.debug(f"Observation: {observation[:200]}...")
@@ -415,6 +282,7 @@ class MockReactJudge:
 
     def __init__(self, registry: AlgorithmRegistry):
         self.registry = registry
+        self.tools = JudgeTools(registry)
 
     def evaluate(
         self,
