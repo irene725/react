@@ -1,0 +1,142 @@
+import logging
+from typing import Optional, List, Dict, Any
+
+from .models import AnalysisReport
+from .algorithms import LengthCheckAlgorithm, KeywordCheckAlgorithm
+from .registry import AlgorithmRegistry
+from .planner import Planner
+from .judge import ReactJudge, MockReactJudge
+from .executor import Executor
+from .reporter import Reporter
+
+
+logger = logging.getLogger(__name__)
+
+
+class TextAnalyzer:
+    """텍스트 분석 에이전트의 메인 클래스.
+
+    Plan-and-Execute 패턴과 ReAct Judge를 활용하여
+    텍스트를 분석하고 문제 여부를 판단합니다.
+    """
+
+    def __init__(
+        self,
+        algorithm_order: Optional[List[str]] = None,
+        use_llm_judge: bool = False,
+        llm_provider: str = "openai",
+        llm_model: str = "gpt-4",
+        llm_api_key: Optional[str] = None,
+        criteria_path: str = "src/criteria",
+        early_exit_on_critical: bool = True
+    ):
+        """
+        Args:
+            algorithm_order: 알고리즘 실행 순서
+            use_llm_judge: LLM 기반 Judge 사용 여부 (False면 Mock Judge 사용)
+            llm_provider: LLM 제공자 ("openai" 또는 "anthropic")
+            llm_model: 사용할 모델 이름
+            llm_api_key: API 키
+            criteria_path: 판단 기준 문서 경로
+            early_exit_on_critical: critical 문제 발견 시 조기 종료 여부
+        """
+        # Registry 초기화 (싱글톤 리셋 후 새로 생성)
+        AlgorithmRegistry.reset()
+        self.registry = AlgorithmRegistry(criteria_path=criteria_path)
+
+        # 기본 알고리즘 등록
+        self._register_default_algorithms()
+
+        # 컴포넌트 초기화
+        self.algorithm_order = algorithm_order or ["length_check", "keyword_check"]
+
+        self.planner = Planner(
+            registry=self.registry,
+            algorithm_order=self.algorithm_order
+        )
+
+        if use_llm_judge:
+            self.judge = ReactJudge(
+                registry=self.registry,
+                llm_provider=llm_provider,
+                model_name=llm_model,
+                api_key=llm_api_key
+            )
+        else:
+            self.judge = MockReactJudge(registry=self.registry)
+
+        self.executor = Executor(
+            registry=self.registry,
+            judge=self.judge,
+            early_exit_on_critical=early_exit_on_critical
+        )
+
+        self.reporter = Reporter()
+
+    def _register_default_algorithms(self) -> None:
+        """기본 알고리즘들을 등록."""
+        self.registry.register(LengthCheckAlgorithm())
+        self.registry.register(KeywordCheckAlgorithm())
+
+    def analyze(
+        self,
+        text: str,
+        input_specs: Optional[Dict[str, Dict[str, Any]]] = None
+    ) -> AnalysisReport:
+        """텍스트를 분석하고 리포트를 생성.
+
+        Args:
+            text: 분석할 텍스트
+            input_specs: 각 알고리즘에 전달할 추가 입력 명세
+
+        Returns:
+            AnalysisReport: 분석 리포트
+        """
+        logger.info(f"Starting analysis for text of length {len(text)}")
+
+        # 1. Plan 생성
+        plan = self.planner.create_plan(text, input_specs)
+        logger.info(f"Plan created with {len(plan.steps)} steps")
+
+        # 2. Plan 실행
+        execution_result = self.executor.execute(plan)
+        logger.info(f"Execution completed with status: {execution_result.status}")
+
+        # 3. 리포트 생성
+        report = self.reporter.generate(execution_result)
+        logger.info("Report generated")
+
+        return report
+
+    def analyze_and_save(
+        self,
+        text: str,
+        output_path: str,
+        input_specs: Optional[Dict[str, Dict[str, Any]]] = None
+    ) -> AnalysisReport:
+        """텍스트를 분석하고 리포트를 파일로 저장.
+
+        Args:
+            text: 분석할 텍스트
+            output_path: 리포트 저장 경로
+            input_specs: 각 알고리즘에 전달할 추가 입력 명세
+
+        Returns:
+            AnalysisReport: 분석 리포트
+        """
+        report = self.analyze(text, input_specs)
+        self.reporter.save_report(report, output_path)
+        logger.info(f"Report saved to {output_path}")
+        return report
+
+    def get_registered_algorithms(self) -> List[str]:
+        """등록된 알고리즘 목록을 반환."""
+        return self.registry.list_algorithms()
+
+    def register_algorithm(self, algorithm) -> None:
+        """새 알고리즘을 등록.
+
+        Args:
+            algorithm: BaseAlgorithm을 상속한 알고리즘 인스턴스
+        """
+        self.registry.register(algorithm)
