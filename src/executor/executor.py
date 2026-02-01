@@ -9,9 +9,18 @@ from ..exceptions import (
     JudgeEvaluationError,
     StepExecutionError,
 )
+from ..logging_config import (
+    get_logger,
+    log_execution_start,
+    log_execution_end,
+    log_step_start,
+    log_step_end,
+    log_judge_reasoning,
+    log_early_exit,
+)
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger("executor")
 
 
 class Executor:
@@ -51,10 +60,11 @@ class Executor:
         status = "all_passed"
 
         execution_order = plan.get_execution_order()
-        logger.info(f"Starting execution with {len(execution_order)} steps")
+        text_length = plan.metadata.get("text_length", 0)
+        log_execution_start(text_length, len(execution_order))
 
         for step in execution_order:
-            logger.info(f"Executing step {step.step_id}: {step.algorithm_name}")
+            log_step_start(step.step_id, step.algorithm_name)
 
             # 알고리즘 실행
             step_result = self._execute_step(step)
@@ -63,26 +73,30 @@ class Executor:
             # 판단 결과 확인
             judgment = step_result.judgment
 
-            logger.info(
-                f"Step {step.step_id} judgment: "
-                f"has_problem={judgment.has_problem}, "
-                f"severity={judgment.severity}"
+            # Judge reasoning 로그
+            log_judge_reasoning(
+                step.algorithm_name,
+                judgment.reasoning,
+                judgment.summary
+            )
+
+            log_step_end(
+                step.step_id,
+                step.algorithm_name,
+                judgment.has_problem,
+                judgment.severity
             )
 
             if judgment.has_problem:
                 if judgment.severity == "critical" and self.early_exit_on_critical:
-                    logger.warning(
-                        f"Critical problem found at step {step.step_id}. "
-                        f"Early exit triggered."
+                    log_early_exit(
+                        step.step_id,
+                        step.algorithm_name,
+                        judgment.summary
                     )
                     stopped_at = step
                     status = "problem_found"
                     break
-                elif judgment.severity == "warning":
-                    # 경고는 기록하되 계속 진행
-                    logger.warning(
-                        f"Warning at step {step.step_id}: {judgment.summary}"
-                    )
 
         # 모든 스텝 완료 후 문제 발견 여부 최종 확인
         if status == "all_passed":
@@ -90,6 +104,8 @@ class Executor:
                 if result.judgment.has_problem:
                     status = "problem_found"
                     break
+
+        log_execution_end(status, len(step_results), len(execution_order))
 
         return ExecutionResult(
             plan=plan,

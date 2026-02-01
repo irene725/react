@@ -5,6 +5,7 @@ import click
 from pathlib import Path
 
 from .main import TextAnalyzer
+from .logging_config import setup_logging, create_log_file_path
 
 
 @click.group()
@@ -54,7 +55,23 @@ def cli():
     default=False,
     help="상세 출력 모드"
 )
-def analyze(text, file, output, use_llm, provider, model, no_early_exit, verbose):
+@click.option(
+    "--debug",
+    is_flag=True,
+    default=False,
+    help="디버그 모드 (상세 로그 출력)"
+)
+@click.option(
+    "--log-file",
+    type=click.Path(),
+    help="로그 파일 저장 경로"
+)
+@click.option(
+    "--log-reasoning/--no-log-reasoning",
+    default=True,
+    help="Judge reasoning 로그 활성화/비활성화"
+)
+def analyze(text, file, output, use_llm, provider, model, no_early_exit, verbose, debug, log_file, log_reasoning):
     """텍스트를 분석하고 리포트를 생성합니다.
 
     TEXT: 분석할 텍스트 (직접 입력)
@@ -63,7 +80,17 @@ def analyze(text, file, output, use_llm, provider, model, no_early_exit, verbose
         text-analyzer analyze "분석할 텍스트"
         text-analyzer analyze -f input.txt
         text-analyzer analyze -f input.txt -o report.md
+        text-analyzer analyze -f input.txt --debug --log-file analysis.log
     """
+    # 로깅 설정
+    log_level = "DEBUG" if debug else ("INFO" if verbose else "WARNING")
+    setup_logging(
+        level=log_level,
+        log_file=log_file,
+        log_judge_reasoning=log_reasoning,
+        debug_mode=debug
+    )
+
     # 입력 텍스트 결정
     if file:
         input_text = Path(file).read_text(encoding="utf-8")
