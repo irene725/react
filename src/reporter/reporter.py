@@ -184,3 +184,139 @@ class Reporter:
         """
         with open(filepath, "w", encoding="utf-8") as f:
             f.write(report.report_content)
+
+    def save_reasoning_trace(
+        self,
+        report: AnalysisReport,
+        filepath: str
+    ) -> None:
+        """상세 추론 과정을 파일로 저장.
+
+        Args:
+            report: 분석 리포트
+            filepath: 저장 경로
+        """
+        content = self._build_reasoning_trace_markdown(report.execution_result)
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write(content)
+
+    def _build_reasoning_trace_markdown(self, result: ExecutionResult) -> str:
+        """상세 추론 과정을 Markdown으로 생성.
+
+        Args:
+            result: 실행 결과
+
+        Returns:
+            Markdown 문자열
+        """
+        lines = []
+
+        # 헤더
+        lines.append("# ReAct Judge 상세 추론 과정")
+        lines.append("")
+        lines.append(f"**생성 시각**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        lines.append("")
+        lines.append("이 파일은 ReAct Judge Agent가 각 알고리즘 결과를 평가하는 과정을 상세히 보여줍니다.")
+        lines.append("")
+
+        # 각 단계별 추론 과정
+        for step_result in result.step_results:
+            lines.append("---")
+            lines.append("")
+            lines.append(f"## Step {step_result.step.step_id}: {step_result.step.algorithm_name}")
+            lines.append("")
+            lines.append(f"**알고리즘**: {step_result.step.algorithm_name}")
+            lines.append(f"**설명**: {step_result.step.description}")
+            lines.append("")
+
+            # 실행 결과
+            lines.append("### 알고리즘 실행 결과")
+            lines.append("")
+            lines.append("```json")
+            lines.append(json.dumps(step_result.execution_result, ensure_ascii=False, indent=2))
+            lines.append("```")
+            lines.append("")
+
+            # 상세 추론 과정
+            if step_result.judgment.detailed_trace:
+                lines.append("### ReAct 추론 과정")
+                lines.append("")
+
+                for trace_item in step_result.judgment.detailed_trace:
+                    iteration = trace_item["iteration"]
+                    lines.append(f"#### 🔄 Iteration {iteration}")
+                    lines.append("")
+
+                    # Thought
+                    if trace_item["thought"]:
+                        lines.append(f"**💭 Thought:**")
+                        lines.append("")
+                        lines.append(f"> {trace_item['thought']}")
+                        lines.append("")
+
+                    # Action
+                    if trace_item["action"]:
+                        lines.append(f"**🔧 Action:** `{trace_item['action']}`")
+                        lines.append("")
+
+                        # Action Input
+                        if trace_item["action_input"]:
+                            lines.append("**📥 Action Input:**")
+                            lines.append("")
+                            if isinstance(trace_item["action_input"], (dict, list)):
+                                lines.append("```json")
+                                lines.append(json.dumps(trace_item["action_input"], ensure_ascii=False, indent=2))
+                                lines.append("```")
+                            else:
+                                lines.append(f"```\n{trace_item['action_input']}\n```")
+                            lines.append("")
+
+                    # Observation
+                    if trace_item["observation"]:
+                        lines.append("**👁️ Observation:**")
+                        lines.append("")
+                        lines.append("<details>")
+                        lines.append("<summary>결과 보기</summary>")
+                        lines.append("")
+                        lines.append("```")
+                        lines.append(trace_item["observation"])
+                        lines.append("```")
+                        lines.append("")
+                        lines.append("</details>")
+                        lines.append("")
+
+                    # Full LLM Response
+                    if trace_item["llm_response"]:
+                        lines.append("<details>")
+                        lines.append("<summary>📝 전체 LLM 응답</summary>")
+                        lines.append("")
+                        lines.append("```")
+                        lines.append(trace_item["llm_response"])
+                        lines.append("```")
+                        lines.append("")
+                        lines.append("</details>")
+                        lines.append("")
+
+                    lines.append("---")
+                    lines.append("")
+
+            # 최종 판단
+            lines.append("### ✅ 최종 판단")
+            lines.append("")
+            severity_icon = {
+                "none": "✅",
+                "warning": "⚠️",
+                "critical": "🚨"
+            }.get(step_result.judgment.severity, "❓")
+            lines.append(f"**판단**: {severity_icon} {step_result.judgment.severity.upper()}")
+            lines.append(f"**문제 발견**: {'예' if step_result.judgment.has_problem else '아니오'}")
+            lines.append("")
+            lines.append(f"**추론**:")
+            lines.append("")
+            lines.append(f"> {step_result.judgment.reasoning}")
+            lines.append("")
+            lines.append(f"**요약**: {step_result.judgment.summary}")
+            lines.append("")
+            lines.append("")
+
+        return "\n".join(lines)

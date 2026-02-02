@@ -30,7 +30,9 @@ class TextAnalyzer:
         criteria_path: str = "src/criteria",
         early_exit_on_critical: bool = True,
         auto_save_report: bool = False,
-        report_output_path: str = "report.md"
+        report_output_path: str = "report.md",
+        auto_save_reasoning_trace: bool = False,
+        reasoning_trace_path: str = "reasoning_trace.md"
     ):
         """
         Args:
@@ -43,6 +45,8 @@ class TextAnalyzer:
             early_exit_on_critical: critical 문제 발견 시 조기 종료 여부
             auto_save_report: 분석 후 자동으로 리포트 파일 저장 여부
             report_output_path: 리포트 저장 경로 (auto_save_report=True일 때)
+            auto_save_reasoning_trace: 상세 추론 과정 자동 저장 여부
+            reasoning_trace_path: 추론 과정 저장 경로 (auto_save_reasoning_trace=True일 때)
         """
         # Registry 초기화 (싱글톤 리셋 후 새로 생성)
         AlgorithmRegistry.reset()
@@ -80,6 +84,8 @@ class TextAnalyzer:
         # 리포트 자동 저장 설정
         self.auto_save_report = auto_save_report
         self.report_output_path = report_output_path
+        self.auto_save_reasoning_trace = auto_save_reasoning_trace
+        self.reasoning_trace_path = reasoning_trace_path
 
     def _register_default_algorithms(self) -> None:
         """기본 알고리즘들을 등록."""
@@ -118,6 +124,11 @@ class TextAnalyzer:
         if self.auto_save_report:
             self.reporter.save_report(report, self.report_output_path)
             logger.info(f"Report automatically saved to {self.report_output_path}")
+
+        # 5. 추론 과정 자동 저장 (옵션)
+        if self.auto_save_reasoning_trace:
+            self.reporter.save_reasoning_trace(report, self.reasoning_trace_path)
+            logger.info(f"Reasoning trace automatically saved to {self.reasoning_trace_path}")
 
         return report
 

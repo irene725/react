@@ -14,6 +14,7 @@ class JudgmentResult:
     severity: str                             # "critical" | "warning" | "none"
     reasoning: str                            # 판단 과정 설명
     summary: str                              # 1-2문장 요약
+    detailed_trace: Optional[List[Dict[str, Any]]] = None  # 상세 추론 과정 (ReAct 사이클)
 
     def __post_init__(self):
         valid_severities = ["critical", "warning", "none"]

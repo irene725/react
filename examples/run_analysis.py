@@ -150,11 +150,13 @@ if __name__ == "__main__":
     print("텍스트 분석 에이전트 예제")
     print("=" * 60)
 
-    # Analyzer 초기화 (LLM Judge 사용 + 자동 리포트 저장)
+    # Analyzer 초기화 (LLM Judge 사용 + 자동 리포트 저장 + 추론 과정 저장)
     analyzer = TextAnalyzer(
         use_llm_judge=True,
         auto_save_report=True,
-        report_output_path="report.md"
+        report_output_path="report.md",
+        auto_save_reasoning_trace=True,
+        reasoning_trace_path="reasoning_trace.md"
     )
 
     # 모든 예제 실행

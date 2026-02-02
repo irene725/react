@@ -161,13 +161,23 @@ class ReactJudge:
 
         judgment_data = None
         iterations = 0
-        reasoning_trace = []  # 추론 과정 기록
+        reasoning_trace = []  # 간단한 추론 과정 기록
+        detailed_trace = []   # 상세 추론 과정 기록 (전체 정보)
 
         logger.info(f"Starting ReAct evaluation for {algorithm_name}")
 
         while iterations < self.max_iterations:
             iterations += 1
             logger.debug(f"ReAct iteration {iterations}")
+
+            iteration_trace = {
+                "iteration": iterations,
+                "thought": None,
+                "action": None,
+                "action_input": None,
+                "observation": None,
+                "llm_response": None
+            }
 
             # LLM 호출
             try:
@@ -177,10 +187,14 @@ class ReactJudge:
                 raise
 
             response_text = response.content
+            iteration_trace["llm_response"] = response_text
             logger.debug(f"LLM response:\n{response_text}")
 
             # Action 파싱
             thought, action, action_input = self._parse_action(response_text)
+            iteration_trace["thought"] = thought
+            iteration_trace["action"] = action
+            iteration_trace["action_input"] = action_input
 
             if thought:
                 reasoning_trace.append(f"Thought: {thought}")
@@ -190,6 +204,8 @@ class ReactJudge:
                 logger.warning("No action found in response, prompting for action")
                 messages.append(AIMessage(content=response_text))
                 messages.append(HumanMessage(content="Please provide an Action. Use submit_judgment when ready to provide your final verdict."))
+                iteration_trace["observation"] = "Error: No action found"
+                detailed_trace.append(iteration_trace)
                 continue
 
             logger.debug(f"Action: {action}, Input: {action_input}")
@@ -199,6 +215,8 @@ class ReactJudge:
             if action == "submit_judgment":
                 if isinstance(action_input, dict):
                     judgment_data = action_input
+                    iteration_trace["observation"] = "Judgment submitted"
+                    detailed_trace.append(iteration_trace)
                     logger.info(f"Judgment submitted after {iterations} iterations")
                     break
                 else:
@@ -206,10 +224,15 @@ class ReactJudge:
                     messages.append(HumanMessage(
                         content="Error: submit_judgment requires JSON input with has_problem, severity, reasoning, and summary fields."
                     ))
+                    iteration_trace["observation"] = "Error: Invalid submit_judgment input"
+                    detailed_trace.append(iteration_trace)
                     continue
 
             # 도구 실행
             observation = self.tools.execute(action, action_input, context)
+            iteration_trace["observation"] = observation
+            detailed_trace.append(iteration_trace)
+
             reasoning_trace.append(f"Observation: {observation[:200]}...")
 
             logger.debug(f"Observation: {observation[:200]}...")
@@ -225,7 +248,8 @@ class ReactJudge:
                 has_problem=judgment_data.get("has_problem", False),
                 severity=judgment_data.get("severity", "none"),
                 reasoning=judgment_data.get("reasoning", "") + f"\n\n[ReAct Trace: {iterations} iterations]",
-                summary=judgment_data.get("summary", "")
+                summary=judgment_data.get("summary", ""),
+                detailed_trace=detailed_trace
             )
         else:
             # 최대 반복 횟수 초과
@@ -235,7 +259,8 @@ class ReactJudge:
                 has_problem=False,
                 severity="none",
                 reasoning=f"ReAct loop did not complete. Trace:\n" + "\n".join(reasoning_trace[-10:]),
-                summary="Evaluation incomplete - max iterations reached"
+                summary="Evaluation incomplete - max iterations reached",
+                detailed_trace=detailed_trace
             )
 
     def _call_llm(self, messages: List) -> Any:
