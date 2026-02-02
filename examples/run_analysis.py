@@ -154,14 +154,16 @@ if __name__ == "__main__":
     analyzer = TextAnalyzer(
         use_llm_judge=True,
         auto_save_report=True,
-        report_output_path="report.md",
+        llm_provider="openai",
+        llm_model="gpt-5-mini",
+        report_output_path="logs/report.md",
         auto_save_reasoning_trace=True,
-        reasoning_trace_path="reasoning_trace.md"
+        reasoning_trace_path="logs/reasoning_trace.md"
     )
 
     # 모든 예제 실행
-    example_1_normal_text(analyzer)
-    # example_2_short_text(analyzer)
+    # example_1_normal_text(analyzer)
+    example_2_short_text(analyzer)
     # example_3_forbidden_keywords(analyzer)
     #
     # # Example 4는 early_exit_on_critical=True가 필요한 경우 별도 analyzer 사용
