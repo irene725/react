@@ -2,8 +2,9 @@
 
 import json
 import re
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Dict, Any, Optional, List, Tuple, Union
 
+from pydantic import BaseModel, Field, ValidationError
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from langchain_openai import ChatOpenAI
 from langchain_anthropic import ChatAnthropic
@@ -22,6 +23,29 @@ from ..exceptions import (
 from ..logging_config import get_logger
 from .tools import JudgeTools, TOOLS_DESCRIPTION
 from .prompts import get_react_system_prompt, get_evaluation_prompt
+
+
+# ===== Structured Output Models =====
+
+class ReActStep(BaseModel):
+    """ReAct 단계의 구조화된 출력 모델.
+
+    Thought: 현재 상황에 대한 추론
+    Action: 수행할 행동 (도구 이름)
+    Action Input: 행동에 필요한 입력 파라미터
+    """
+    thought: str = Field(
+        description="Your reasoning about the current situation and what to do next. "
+                    "Explain your thinking process clearly."
+    )
+    action: str = Field(
+        description="The action/tool to use. Must be one of: get_criteria, get_result_field, "
+                    "check_threshold, calculate_percentage, submit_judgment"
+    )
+    action_input: Union[Dict[str, Any], str] = Field(
+        description="The input parameters for the action. Use a dictionary for structured data "
+                    "or a string for simple inputs."
+    )
 
 
 logger = get_logger("judge")
@@ -44,7 +68,8 @@ class ReactJudge:
         temperature: float = 0.0,
         timeout: int = 30,
         api_key: Optional[str] = None,
-        max_iterations: int = 10
+        max_iterations: int = 10,
+        use_structured_output: bool = True
     ):
         """
         Args:
@@ -55,6 +80,7 @@ class ReactJudge:
             timeout: API 호출 타임아웃 (초)
             api_key: API 키 (None이면 환경변수에서 로드)
             max_iterations: 최대 반복 횟수
+            use_structured_output: 구조화된 출력 사용 여부 (True 권장)
         """
         self.registry = registry
         self.llm_provider = llm_provider
@@ -62,9 +88,24 @@ class ReactJudge:
         self.temperature = temperature
         self.timeout = timeout
         self.max_iterations = max_iterations
+        self.use_structured_output = use_structured_output
 
-        self.llm = self._create_llm(api_key)
+        base_llm = self._create_llm(api_key)
         self.tools = JudgeTools(registry)
+
+        # 구조화된 출력을 위한 LLM 설정
+        if self.use_structured_output:
+            try:
+                self.llm = base_llm.with_structured_output(ReActStep)
+            except AttributeError:
+                logger.warning(
+                    f"Structured output not supported for {llm_provider}/{model_name}. "
+                    "Falling back to regex parsing."
+                )
+                self.use_structured_output = False
+                self.llm = base_llm
+        else:
+            self.llm = base_llm
 
     def _create_llm(self, api_key: Optional[str] = None):
         """LLM 인스턴스를 생성."""
@@ -98,8 +139,32 @@ class ReactJudge:
         else:
             raise ValueError(f"Unsupported LLM provider: {self.llm_provider}")
 
-    def _parse_action(self, response_text: str) -> Tuple[Optional[str], Optional[str], Optional[Any]]:
-        """LLM 응답에서 Thought, Action, Action Input을 파싱.
+    def _parse_action_structured(self, messages: List) -> Tuple[Optional[str], Optional[str], Optional[Any], str]:
+        """구조화된 출력을 사용하여 ReAct 단계를 파싱.
+
+        Returns:
+            (thought, action_name, action_input, raw_response) 튜플
+        """
+        try:
+            # 구조화된 출력으로 LLM 호출 (self.llm이 이미 structured output으로 래핑됨)
+            react_step: ReActStep = self._call_llm(messages)
+
+            return (
+                react_step.thought,
+                react_step.action,
+                react_step.action_input,
+                f"Thought: {react_step.thought}\nAction: {react_step.action}\nAction Input: {json.dumps(react_step.action_input, ensure_ascii=False)}"
+            )
+        except ValidationError as e:
+            logger.error(f"Structured output validation failed: {e}")
+            # 실패 시 None 반환하여 재시도 유도
+            return None, None, None, f"Validation Error: {str(e)}"
+        except Exception as e:
+            logger.error(f"Structured output parsing failed: {e}")
+            return None, None, None, f"Parsing Error: {str(e)}"
+
+    def _parse_action_regex(self, response_text: str) -> Tuple[Optional[str], Optional[str], Optional[Any]]:
+        """정규식을 사용하여 LLM 응답에서 Thought, Action, Action Input을 파싱 (fallback).
 
         Returns:
             (thought, action_name, action_input) 튜플
@@ -150,7 +215,7 @@ class ReactJudge:
         initial_prompt = get_evaluation_prompt(algorithm_name, result_json)
 
         messages = [
-            SystemMessage(content=get_react_system_prompt(TOOLS_DESCRIPTION)),
+            SystemMessage(content=get_react_system_prompt(TOOLS_DESCRIPTION, self.use_structured_output)),
             HumanMessage(content=initial_prompt)
         ]
 
@@ -179,22 +244,25 @@ class ReactJudge:
                 "llm_response": None
             }
 
-            # LLM 호출
+            # LLM 호출 및 파싱
             try:
-                response = self._call_llm(messages)
+                if self.use_structured_output:
+                    # 구조화된 출력 사용
+                    thought, action, action_input, response_text = self._parse_action_structured(messages)
+                else:
+                    # 기존 regex 파싱 사용
+                    response = self._call_llm(messages)
+                    response_text = response.content
+                    thought, action, action_input = self._parse_action_regex(response_text)
             except Exception as e:
-                logger.error(f"LLM call failed: {e}")
+                logger.error(f"LLM call or parsing failed: {e}")
                 raise
 
-            response_text = response.content
             iteration_trace["llm_response"] = response_text
-            logger.debug(f"LLM response:\n{response_text}")
-
-            # Action 파싱
-            thought, action, action_input = self._parse_action(response_text)
             iteration_trace["thought"] = thought
             iteration_trace["action"] = action
             iteration_trace["action_input"] = action_input
+            logger.debug(f"LLM response:\n{response_text}")
 
             if thought:
                 reasoning_trace.append(f"Thought: {thought}")
@@ -264,7 +332,11 @@ class ReactJudge:
             )
 
     def _call_llm(self, messages: List) -> Any:
-        """LLM을 호출하고 에러를 처리."""
+        """LLM을 호출하고 에러를 처리.
+
+        Returns:
+            ReActStep if use_structured_output=True, AIMessage otherwise
+        """
         try:
             return self.llm.invoke(messages)
         except (OpenAITimeoutError, AnthropicTimeoutError, litellm.Timeout) as e:
