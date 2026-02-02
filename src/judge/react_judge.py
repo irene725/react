@@ -1,7 +1,6 @@
 """ReAct 패턴을 구현한 Judge Agent."""
 
 import json
-import logging
 import re
 from typing import Dict, Any, Optional, List, Tuple
 
@@ -20,11 +19,12 @@ from ..exceptions import (
     LLMTimeoutError,
     LLMRateLimitError,
 )
+from ..logging_config import get_logger
 from .tools import JudgeTools, TOOLS_DESCRIPTION
 from .prompts import get_react_system_prompt, get_evaluation_prompt
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger("judge")
 
 
 class ReactJudge:

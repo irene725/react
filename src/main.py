@@ -1,4 +1,3 @@
-import logging
 from typing import Optional, List, Dict, Any
 
 from .models import AnalysisReport
@@ -8,9 +7,10 @@ from .planner import Planner
 from .judge import ReactJudge, MockReactJudge
 from .executor import Executor
 from .reporter import Reporter
+from .logging_config import get_logger
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 class TextAnalyzer:
