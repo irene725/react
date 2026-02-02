@@ -95,26 +95,32 @@ class ReactJudge:
     def _create_llm(self, api_key: Optional[str] = None):
         """LLM 인스턴스를 생성."""
         if self.llm_provider == "openai":
-            return ChatOpenAI(
-                model=self.model_name,
-                temperature=self.temperature,
-                timeout=self.timeout,
-                api_key=api_key
-            )
+            kwargs = {
+                "model": self.model_name,
+                "temperature": self.temperature,
+                "timeout": self.timeout,
+            }
+            if api_key is not None:
+                kwargs["api_key"] = api_key
+            return ChatOpenAI(**kwargs)
         elif self.llm_provider == "anthropic":
-            return ChatAnthropic(
-                model=self.model_name,
-                temperature=self.temperature,
-                timeout=self.timeout,
-                api_key=api_key
-            )
+            kwargs = {
+                "model": self.model_name,
+                "temperature": self.temperature,
+                "timeout": self.timeout,
+            }
+            if api_key is not None:
+                kwargs["api_key"] = api_key
+            return ChatAnthropic(**kwargs)
         elif self.llm_provider == "litellm":
-            return ChatLiteLLM(
-                model=self.model_name,
-                temperature=self.temperature,
-                timeout=self.timeout,
-                api_key=api_key
-            )
+            kwargs = {
+                "model": self.model_name,
+                "temperature": self.temperature,
+                "timeout": self.timeout,
+            }
+            if api_key is not None:
+                kwargs["api_key"] = api_key
+            return ChatLiteLLM(**kwargs)
         else:
             raise ValueError(f"Unsupported LLM provider: {self.llm_provider}")
 
