@@ -28,7 +28,9 @@ class TextAnalyzer:
         llm_model: str = "gpt-4",
         llm_api_key: Optional[str] = None,
         criteria_path: str = "src/criteria",
-        early_exit_on_critical: bool = True
+        early_exit_on_critical: bool = True,
+        auto_save_report: bool = False,
+        report_output_path: str = "report.md"
     ):
         """
         Args:
@@ -39,6 +41,8 @@ class TextAnalyzer:
             llm_api_key: API 키
             criteria_path: 판단 기준 문서 경로
             early_exit_on_critical: critical 문제 발견 시 조기 종료 여부
+            auto_save_report: 분석 후 자동으로 리포트 파일 저장 여부
+            report_output_path: 리포트 저장 경로 (auto_save_report=True일 때)
         """
         # Registry 초기화 (싱글톤 리셋 후 새로 생성)
         AlgorithmRegistry.reset()
@@ -73,6 +77,10 @@ class TextAnalyzer:
 
         self.reporter = Reporter()
 
+        # 리포트 자동 저장 설정
+        self.auto_save_report = auto_save_report
+        self.report_output_path = report_output_path
+
     def _register_default_algorithms(self) -> None:
         """기본 알고리즘들을 등록."""
         self.registry.register(LengthCheckAlgorithm())
@@ -105,6 +113,11 @@ class TextAnalyzer:
         # 3. 리포트 생성
         report = self.reporter.generate(execution_result)
         logger.info("Report generated")
+
+        # 4. 자동 저장 (옵션)
+        if self.auto_save_report:
+            self.reporter.save_report(report, self.report_output_path)
+            logger.info(f"Report automatically saved to {self.report_output_path}")
 
         return report
 
