@@ -21,36 +21,10 @@ from ..exceptions import (
     LLMRateLimitError,
 )
 from .tools import JudgeTools, TOOLS_DESCRIPTION
+from .prompts import get_react_system_prompt, get_evaluation_prompt
 
 
 logger = logging.getLogger(__name__)
-
-
-# ReAct 시스템 프롬프트
-REACT_SYSTEM_PROMPT = f"""You are a ReAct Judge Agent that evaluates algorithm results using the Reasoning + Acting pattern.
-
-## Available Tools
-{TOOLS_DESCRIPTION}
-
-## Response Format
-
-You MUST follow this exact format for EVERY response:
-
-Thought: [Your reasoning about what to do next]
-Action: [tool_name]
-Action Input: [input for the tool - must be valid JSON for tools that require it]
-
-After receiving an observation, continue with another Thought/Action/Action Input cycle until you're ready to submit your judgment.
-
-When you have enough information, use submit_judgment to provide your final verdict.
-
-## Important Rules
-1. Always start by getting the criteria document
-2. Analyze the execution result against the criteria
-3. Use check_threshold and calculate_percentage to verify conditions
-4. Base your judgment on specific criteria from the document
-5. You MUST eventually call submit_judgment to complete the evaluation
-"""
 
 
 class ReactJudge:
@@ -173,19 +147,10 @@ class ReactJudge:
         """
         # 초기 프롬프트 구성
         result_json = json.dumps(execution_result, ensure_ascii=False, indent=2)
-        initial_prompt = f"""Evaluate the following algorithm result:
-
-## Algorithm: {algorithm_name}
-
-## Execution Result:
-```json
-{result_json}
-```
-
-Start by getting the criteria document, then analyze the result and submit your judgment."""
+        initial_prompt = get_evaluation_prompt(algorithm_name, result_json)
 
         messages = [
-            SystemMessage(content=REACT_SYSTEM_PROMPT),
+            SystemMessage(content=get_react_system_prompt(TOOLS_DESCRIPTION)),
             HumanMessage(content=initial_prompt)
         ]
 
