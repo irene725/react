@@ -69,6 +69,7 @@ class ReactJudge:
         temperature: float = 0.0,
         timeout: int = 30,
         api_key: Optional[str] = None,
+        base_url: Optional[str] = None,
         max_iterations: int = 10,
         use_structured_output: bool = True
     ):
@@ -80,6 +81,7 @@ class ReactJudge:
             temperature: LLM 온도 설정
             timeout: API 호출 타임아웃 (초)
             api_key: API 키 (None이면 환경변수에서 로드)
+            base_url: API 베이스 URL (litellm 사용 시 필수, 다른 provider는 선택사항)
             max_iterations: 최대 반복 횟수
             use_structured_output: 구조화된 출력 사용 여부 (True 권장)
         """
@@ -88,6 +90,7 @@ class ReactJudge:
         self.model_name = model_name
         self.temperature = temperature
         self.timeout = timeout
+        self.base_url = base_url
         self.max_iterations = max_iterations
         self.use_structured_output = use_structured_output
 
@@ -118,6 +121,8 @@ class ReactJudge:
             }
             if api_key is not None:
                 kwargs["api_key"] = api_key
+            if self.base_url is not None:
+                kwargs["base_url"] = self.base_url
             return ChatOpenAI(**kwargs)
         elif self.llm_provider == "anthropic":
             kwargs = {
@@ -127,6 +132,8 @@ class ReactJudge:
             }
             if api_key is not None:
                 kwargs["api_key"] = api_key
+            if self.base_url is not None:
+                kwargs["base_url"] = self.base_url
             return ChatAnthropic(**kwargs)
         elif self.llm_provider == "litellm":
             kwargs = {
@@ -136,6 +143,8 @@ class ReactJudge:
             }
             if api_key is not None:
                 kwargs["api_key"] = api_key
+            if self.base_url is not None:
+                kwargs["base_url"] = self.base_url
             return ChatLiteLLM(**kwargs)
         else:
             raise ValueError(f"Unsupported LLM provider: {self.llm_provider}")
