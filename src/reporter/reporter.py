@@ -221,7 +221,8 @@ class Reporter:
 
         # 각 단계별 추론 과정
         for step_result in result.step_results:
-            lines.append("---")
+            lines.append("")
+            lines.append("=" * 80)
             lines.append("")
             lines.append(f"## Step {step_result.step.step_id}: {step_result.step.algorithm_name}")
             lines.append("")
@@ -275,29 +276,37 @@ class Reporter:
                     if trace_item["observation"]:
                         lines.append("**👁️ Observation:**")
                         lines.append("")
-                        lines.append("<details>")
-                        lines.append("<summary>결과 보기</summary>")
-                        lines.append("")
-                        lines.append("```")
-                        lines.append(trace_item["observation"])
-                        lines.append("```")
-                        lines.append("")
-                        lines.append("</details>")
+                        obs_text = trace_item["observation"]
+                        # 긴 observation은 요약
+                        if len(obs_text) > 500:
+                            lines.append("<details>")
+                            lines.append("<summary>결과 보기 (긴 내용)</summary>")
+                            lines.append("")
+                            lines.append("```")
+                            lines.append(obs_text)
+                            lines.append("```")
+                            lines.append("")
+                            lines.append("</details>")
+                        else:
+                            lines.append("```")
+                            lines.append(obs_text)
+                            lines.append("```")
                         lines.append("")
 
-                    # Full LLM Response
+                    # Full LLM Response - 긴 경우만 접기
                     if trace_item["llm_response"]:
-                        lines.append("<details>")
-                        lines.append("<summary>📝 전체 LLM 응답</summary>")
-                        lines.append("")
-                        lines.append("```")
-                        lines.append(trace_item["llm_response"])
-                        lines.append("```")
-                        lines.append("")
-                        lines.append("</details>")
+                        llm_resp = trace_item["llm_response"]
+                        if len(llm_resp) > 300:
+                            lines.append("<details>")
+                            lines.append("<summary>📝 전체 LLM 응답 보기</summary>")
+                            lines.append("")
+                            lines.append("```")
+                            lines.append(llm_resp)
+                            lines.append("```")
+                            lines.append("")
+                            lines.append("</details>")
                         lines.append("")
 
-                    lines.append("---")
                     lines.append("")
 
             # 최종 판단
