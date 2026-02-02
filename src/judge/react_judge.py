@@ -2,7 +2,7 @@
 
 import json
 import re
-from typing import Dict, Any, Optional, List, Tuple, Union
+from typing import Dict, Any, Optional, List, Tuple
 
 from pydantic import BaseModel, Field, ValidationError
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
@@ -42,9 +42,10 @@ class ReActStep(BaseModel):
         description="The action/tool to use. Must be one of: get_criteria, get_result_field, "
                     "check_threshold, calculate_percentage, submit_judgment"
     )
-    action_input: Union[Dict[str, Any], str] = Field(
-        description="The input parameters for the action. Use a dictionary for structured data "
-                    "or a string for simple inputs."
+    action_input: str = Field(
+        description="The input parameters for the action. "
+                    "For structured data, use valid JSON format (e.g., '{\"key\": \"value\"}'). "
+                    "For simple inputs, use a plain string (e.g., 'algorithm_name')."
     )
 
 
@@ -149,11 +150,22 @@ class ReactJudge:
             # 구조화된 출력으로 LLM 호출 (self.llm이 이미 structured output으로 래핑됨)
             react_step: ReActStep = self._call_llm(messages)
 
+            # action_input을 파싱 (JSON이면 dict로, 아니면 문자열로)
+            parsed_input = react_step.action_input
+            try:
+                parsed_input = json.loads(react_step.action_input)
+            except (json.JSONDecodeError, TypeError):
+                # JSON이 아니면 문자열 그대로 사용
+                pass
+
+            # 표시용 문자열 생성
+            input_display = json.dumps(parsed_input, ensure_ascii=False) if isinstance(parsed_input, dict) else parsed_input
+
             return (
                 react_step.thought,
                 react_step.action,
-                react_step.action_input,
-                f"Thought: {react_step.thought}\nAction: {react_step.action}\nAction Input: {json.dumps(react_step.action_input, ensure_ascii=False)}"
+                parsed_input,
+                f"Thought: {react_step.thought}\nAction: {react_step.action}\nAction Input: {input_display}"
             )
         except ValidationError as e:
             logger.error(f"Structured output validation failed: {e}")
